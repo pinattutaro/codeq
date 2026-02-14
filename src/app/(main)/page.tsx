@@ -2,6 +2,9 @@ import { QuestionCard } from '@/components';
 import { Search } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 
+// 動的レンダリングを強制（常に最新データを取得）
+export const dynamic = 'force-dynamic';
+
 // タグカラーのマッピング
 const tagColors: Record<string, string> = {
   'React': 'bg-[#61DAFB]/20 text-[#0EA5E9]',

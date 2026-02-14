@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // 質問一覧取得
@@ -110,20 +111,41 @@ export async function GET(request: NextRequest) {
 // 質問作成
 export async function POST(request: NextRequest) {
   try {
-    const { title, body, tags, authorId } = await request.json()
+    const supabase = await createClient()
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser()
 
-    if (!authorId) {
+    if (!supabaseUser) {
       return NextResponse.json(
         { error: 'ログインが必要です' },
         { status: 401 }
       )
     }
 
+    // PrismaユーザーをSupabase IDで取得または作成
+    let dbUser = await prisma.user.findUnique({
+      where: { supabaseId: supabaseUser.id },
+    })
+
+    if (!dbUser) {
+      // ユーザーが存在しない場合は作成
+      dbUser = await prisma.user.create({
+        data: {
+          email: supabaseUser.email!,
+          name: supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0] || 'User',
+          displayName: supabaseUser.user_metadata?.display_name || supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0],
+          supabaseId: supabaseUser.id,
+          avatarUrl: supabaseUser.user_metadata?.avatar_url,
+        },
+      })
+    }
+
+    const { title, body, tags } = await request.json()
+
     const question = await prisma.question.create({
       data: {
         title,
         body,
-        authorId,
+        authorId: dbUser.id,
         tags: {
           create: tags.map((tagName: string) => ({
             tag: {
@@ -152,7 +174,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ question })
+    return NextResponse.json({ id: question.id, question })
   } catch (error) {
     console.error('Error creating question:', error)
     return NextResponse.json(
