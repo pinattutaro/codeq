@@ -53,12 +53,13 @@ function ExploreContent() {
       try {
         const response = await fetch('/api/tags');
         if (response.ok) {
-          const data = await response.json();
+          const result = await response.json();
+          const data = result.tags || result;
           setPopularTags(
-            data.slice(0, 8).map((tag: { name: string; _count: { questions: number } }) => ({
+            (Array.isArray(data) ? data : []).slice(0, 8).map((tag: { name: string; _count?: { questions: number } }) => ({
               name: tag.name,
               color: tagColors[tag.name] || 'bg-[#6B7280]/20 text-[#6B7280]',
-              count: tag._count.questions,
+              count: tag._count?.questions || 0,
             }))
           );
         }
@@ -84,30 +85,31 @@ function ExploreContent() {
         if (response.ok) {
           const data = await response.json();
           setQuestions(
-            data.questions.map((q: {
+            (data.questions || []).map((q: {
               id: string;
               title: string;
               body: string;
               tags: { tag: { name: string } }[];
-              author: { displayName?: string; username: string };
+              author: { displayName?: string; name: string };
               _count: { votes: number; answers: number };
-              views: number;
+              viewCount: number;
+              voteScore: number;
               createdAt: string;
-              answers: { isAccepted: boolean }[];
+              answers?: { isAccepted: boolean }[];
             }) => ({
               id: q.id,
               title: q.title,
               excerpt: q.body.substring(0, 100) + '...',
-              tags: q.tags.map((t: { tag: { name: string } }) => ({
+              tags: (q.tags || []).map((t: { tag: { name: string } }) => ({
                 name: t.tag.name,
                 color: tagColors[t.tag.name] || 'bg-[#6B7280]/20 text-[#6B7280]',
               })),
-              author: { name: q.author.displayName || q.author.username },
-              votes: q._count.votes,
-              answers: q._count.answers,
-              views: q.views,
+              author: { name: q.author.displayName || q.author.name },
+              votes: q.voteScore || 0,
+              answers: q._count?.answers || 0,
+              views: q.viewCount || 0,
               createdAt: new Date(q.createdAt).toLocaleDateString('ja-JP'),
-              hasAcceptedAnswer: q.answers?.some((a: { isAccepted: boolean }) => a.isAccepted) || false,
+              hasAcceptedAnswer: (q.answers || []).some((a: { isAccepted: boolean }) => a.isAccepted),
             }))
           );
         }

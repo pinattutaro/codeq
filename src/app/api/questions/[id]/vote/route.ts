@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // 投票
@@ -9,14 +10,30 @@ export async function POST(
   const { id: questionId } = await params
 
   try {
-    const { userId, value } = await request.json()
+    const supabase = await createClient()
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser()
 
-    if (!userId) {
+    if (!supabaseUser) {
       return NextResponse.json(
         { error: 'ログインが必要です' },
         { status: 401 }
       )
     }
+
+    // PrismaユーザーをSupabase IDで取得
+    const dbUser = await prisma.user.findUnique({
+      where: { supabaseId: supabaseUser.id },
+    })
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: 'ユーザーが見つかりません' },
+        { status: 404 }
+      )
+    }
+
+    const { value } = await request.json()
+    const userId = dbUser.id
 
     // 既存の投票を確認
     const existingVote = await prisma.vote.findUnique({

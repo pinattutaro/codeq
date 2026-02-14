@@ -47,15 +47,15 @@ export default function SavedPage() {
         if (response.ok) {
           const data = await response.json();
           setSavedQuestions(
-            data.map((item: {
+            (data || []).map((item: {
               question: {
                 id: string;
                 title: string;
                 body: string;
                 tags: { tag: { name: string } }[];
-                author: { displayName?: string; username: string };
+                author: { displayName?: string; name: string };
                 _count: { votes: number; answers: number };
-                views: number;
+                viewCount: number;
                 createdAt: string;
                 answers: { isAccepted: boolean }[];
               };
@@ -63,16 +63,16 @@ export default function SavedPage() {
               id: item.question.id,
               title: item.question.title,
               excerpt: item.question.body.substring(0, 100) + '...',
-              tags: item.question.tags.map((t: { tag: { name: string } }) => ({
+              tags: (item.question.tags || []).map((t: { tag: { name: string } }) => ({
                 name: t.tag.name,
                 color: tagColors[t.tag.name] || 'bg-[#6B7280]/20 text-[#6B7280]',
               })),
-              author: { name: item.question.author.displayName || item.question.author.username },
-              votes: item.question._count.votes,
-              answers: item.question._count.answers,
-              views: item.question.views,
+              author: { name: item.question.author.displayName || item.question.author.name },
+              votes: item.question._count?.votes || 0,
+              answers: item.question._count?.answers || 0,
+              views: item.question.viewCount || 0,
               createdAt: new Date(item.question.createdAt).toLocaleDateString('ja-JP'),
-              hasAcceptedAnswer: item.question.answers.some((a: { isAccepted: boolean }) => a.isAccepted),
+              hasAcceptedAnswer: (item.question.answers || []).some((a: { isAccepted: boolean }) => a.isAccepted),
             }))
           );
         }

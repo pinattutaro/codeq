@@ -42,8 +42,8 @@ export default function MyPage() {
           const data = await response.json();
           setProfile({
             id: data.id,
-            username: data.username,
-            displayName: data.displayName || data.username,
+            username: data.name,
+            displayName: data.displayName || data.name,
             bio: data.bio || '',
             avatarUrl: data.avatarUrl,
             questionsCount: data._count?.questions || 0,
