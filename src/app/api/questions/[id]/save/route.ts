@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // 保存/保存解除
@@ -9,14 +10,29 @@ export async function POST(
   const { id: questionId } = await params
 
   try {
-    const { userId } = await request.json()
+    const supabase = await createClient()
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser()
 
-    if (!userId) {
+    if (!supabaseUser) {
       return NextResponse.json(
         { error: 'ログインが必要です' },
         { status: 401 }
       )
     }
+
+    // PrismaユーザーをSupabase IDで取得
+    const dbUser = await prisma.user.findUnique({
+      where: { supabaseId: supabaseUser.id },
+    })
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: 'ユーザーが見つかりません' },
+        { status: 404 }
+      )
+    }
+
+    const userId = dbUser.id
 
     // 既存の保存を確認
     const existingSave = await prisma.savedQuestion.findUnique({

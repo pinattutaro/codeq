@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // 回答を投稿
@@ -9,14 +10,34 @@ export async function POST(
   const { id: questionId } = await params
 
   try {
-    const { body, authorId } = await request.json()
+    const supabase = await createClient()
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser()
 
-    if (!authorId) {
+    if (!supabaseUser) {
       return NextResponse.json(
         { error: 'ログインが必要です' },
         { status: 401 }
       )
     }
+
+    // PrismaユーザーをSupabase IDで取得または作成
+    let dbUser = await prisma.user.findUnique({
+      where: { supabaseId: supabaseUser.id },
+    })
+
+    if (!dbUser) {
+      dbUser = await prisma.user.create({
+        data: {
+          email: supabaseUser.email!,
+          name: supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0] || 'User',
+          displayName: supabaseUser.user_metadata?.display_name || supabaseUser.email?.split('@')[0],
+          supabaseId: supabaseUser.id,
+        },
+      })
+    }
+
+    const { body } = await request.json()
+    const authorId = dbUser.id
 
     const answer = await prisma.answer.create({
       data: {

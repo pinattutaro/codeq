@@ -193,13 +193,14 @@ export default function QuestionDetailPage() {
         setAnswerBody('');
         // 再取得
         const refreshResponse = await fetch(`/api/questions/${params.id}`);
-        const data = await refreshResponse.json();
+        const result = await refreshResponse.json();
+        const data = result.question;
         setAnswers(
-          data.answers?.map((a: {
+          (data?.answers || []).map((a: {
             id: string;
             body: string;
-            author: { id: string; displayName?: string; username: string; avatarUrl?: string };
-            _count?: { votes: number };
+            author: { id: string; displayName?: string; name: string; avatarUrl?: string };
+            voteScore?: number;
             createdAt: string;
             isAccepted: boolean;
           }) => ({
@@ -207,12 +208,12 @@ export default function QuestionDetailPage() {
             body: a.body,
             author: {
               id: a.author.id,
-              name: a.author.displayName || a.author.username,
+              name: a.author.displayName || a.author.name,
             },
-            votes: a._count?.votes || 0,
+            votes: a.voteScore || 0,
             createdAt: new Date(a.createdAt).toLocaleDateString('ja-JP'),
             isAccepted: a.isAccepted,
-          })) || []
+          }))
         );
       }
     } catch {
