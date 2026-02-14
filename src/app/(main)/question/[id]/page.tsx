@@ -65,31 +65,37 @@ export default function QuestionDetailPage() {
         if (!response.ok) {
           throw new Error('質問が見つかりませんでした');
         }
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.question;
+        
+        if (!data) {
+          throw new Error('質問が見つかりませんでした');
+        }
+        
         setQuestion({
           id: data.id,
           title: data.title,
           body: data.body,
-          tags: data.tags.map((t: { tag: { name: string } }) => ({
+          tags: (data.tags || []).map((t: { tag: { name: string } }) => ({
             name: t.tag.name,
             color: tagColors[t.tag.name] || 'bg-[#6B7280]/20 text-[#6B7280]',
           })),
           author: {
             id: data.author.id,
-            name: data.author.displayName || data.author.username,
+            name: data.author.displayName || data.author.name,
             avatarUrl: data.author.avatarUrl,
           },
-          votes: data._count?.votes || 0,
+          votes: data.voteScore || 0,
           createdAt: new Date(data.createdAt).toLocaleDateString('ja-JP'),
           userVote: data.userVote,
           isSaved: data.isSaved,
         });
         setAnswers(
-          data.answers?.map((a: {
+          (data.answers || []).map((a: {
             id: string;
             body: string;
-            author: { id: string; displayName?: string; username: string; avatarUrl?: string };
-            _count?: { votes: number };
+            author: { id: string; displayName?: string; name: string; avatarUrl?: string };
+            voteScore?: number;
             createdAt: string;
             isAccepted: boolean;
             userVote?: number;
@@ -98,14 +104,14 @@ export default function QuestionDetailPage() {
             body: a.body,
             author: {
               id: a.author.id,
-              name: a.author.displayName || a.author.username,
+              name: a.author.displayName || a.author.name,
               avatarUrl: a.author.avatarUrl,
             },
-            votes: a._count?.votes || 0,
+            votes: a.voteScore || 0,
             createdAt: new Date(a.createdAt).toLocaleDateString('ja-JP'),
             isAccepted: a.isAccepted,
             userVote: a.userVote,
-          })) || []
+          }))
         );
       } catch (err) {
         setError(err instanceof Error ? err.message : 'エラーが発生しました');
