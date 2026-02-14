@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Playfair_Display, Space_Mono } from "next/font/google";
+import { AuthProvider } from "@/contexts/AuthContext";
 import "./globals.css";
 
 const playfairDisplay = Playfair_Display({
@@ -29,7 +30,9 @@ export default function RootLayout({
       <body
         className={`${playfairDisplay.variable} ${spaceMono.variable} antialiased`}
       >
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

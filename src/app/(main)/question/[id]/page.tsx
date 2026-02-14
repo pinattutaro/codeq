@@ -1,52 +1,239 @@
-import { ChevronUp, ChevronDown, Check, MessageSquare, ArrowLeft } from 'lucide-react';
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { ChevronUp, ChevronDown, Check, MessageSquare, ArrowLeft, Bookmark } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 
-const question = {
-  id: '1',
-  title: 'ReactでuseStateの値が更新されない問題',
-  content: `useStateで状態を更新しても、コンソールログには古い値が表示されます。
+interface Tag {
+  name: string;
+  color: string;
+}
 
-例えば、以下のようなコードがあるとします：
+interface Author {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+}
 
-\`\`\`javascript
-const [count, setCount] = useState(0);
+interface Answer {
+  id: string;
+  body: string;
+  author: Author;
+  votes: number;
+  createdAt: string;
+  isAccepted: boolean;
+  userVote?: number;
+}
 
-const handleClick = () => {
-  setCount(count + 1);
-  console.log(count); // ここでは古い値が表示される
+interface Question {
+  id: string;
+  title: string;
+  body: string;
+  tags: Tag[];
+  author: Author;
+  votes: number;
+  createdAt: string;
+  userVote?: number;
+  isSaved?: boolean;
+}
+
+const tagColors: Record<string, string> = {
+  JavaScript: 'bg-[#2563EB]/20 text-[#2563EB]',
+  React: 'bg-[#F59E0B]/20 text-[#F59E0B]',
+  TypeScript: 'bg-[#DC2626]/20 text-[#DC2626]',
+  Python: 'bg-[#059669]/20 text-[#059669]',
+  'Node.js': 'bg-[#8B5CF6]/20 text-[#8B5CF6]',
 };
-\`\`\`
-
-なぜ更新が即座に反映されないのでしょうか？`,
-  tags: [
-    { name: 'React', color: 'bg-[#F59E0B]/20 text-[#F59E0B]' },
-    { name: 'JavaScript', color: 'bg-[#2563EB]/20 text-[#2563EB]' },
-  ],
-  author: { name: 'tanaka_dev' },
-  votes: 12,
-  createdAt: '1時間前',
-};
-
-const answers = [
-  {
-    id: 'a1',
-    content: `これはReactの仕様によるものです。setStateはバッチ処理で非同期的に実行されます。
-
-解決策として、useEffectを使用して状態変更を監視するか、setStateのコールバック形式を使用してください：
-
-\`\`\`javascript
-setCount(prevCount => prevCount + 1);
-\`\`\`
-
-また、最新の値が必要な場合は、useRefを併用する方法もあります。`,
-    author: { name: 'react_master' },
-    votes: 15,
-    createdAt: '30分前',
-    isAccepted: true,
-  },
-];
 
 export default function QuestionDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { user } = useAuth();
+  const [question, setQuestion] = useState<Question | null>(null);
+  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [answerBody, setAnswerBody] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const fetchQuestion = async () => {
+      try {
+        const response = await fetch(`/api/questions/${params.id}`);
+        if (!response.ok) {
+          throw new Error('質問が見つかりませんでした');
+        }
+        const data = await response.json();
+        setQuestion({
+          id: data.id,
+          title: data.title,
+          body: data.body,
+          tags: data.tags.map((t: { tag: { name: string } }) => ({
+            name: t.tag.name,
+            color: tagColors[t.tag.name] || 'bg-[#6B7280]/20 text-[#6B7280]',
+          })),
+          author: {
+            id: data.author.id,
+            name: data.author.displayName || data.author.username,
+            avatarUrl: data.author.avatarUrl,
+          },
+          votes: data._count?.votes || 0,
+          createdAt: new Date(data.createdAt).toLocaleDateString('ja-JP'),
+          userVote: data.userVote,
+          isSaved: data.isSaved,
+        });
+        setAnswers(
+          data.answers?.map((a: {
+            id: string;
+            body: string;
+            author: { id: string; displayName?: string; username: string; avatarUrl?: string };
+            _count?: { votes: number };
+            createdAt: string;
+            isAccepted: boolean;
+            userVote?: number;
+          }) => ({
+            id: a.id,
+            body: a.body,
+            author: {
+              id: a.author.id,
+              name: a.author.displayName || a.author.username,
+              avatarUrl: a.author.avatarUrl,
+            },
+            votes: a._count?.votes || 0,
+            createdAt: new Date(a.createdAt).toLocaleDateString('ja-JP'),
+            isAccepted: a.isAccepted,
+            userVote: a.userVote,
+          })) || []
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (params.id) {
+      fetchQuestion();
+    }
+  }, [params.id]);
+
+  const handleVote = async (value: number, type: 'question' | 'answer', answerId?: string) => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    try {
+      const url = type === 'question'
+        ? `/api/questions/${params.id}/vote`
+        : `/api/questions/${params.id}/answers/${answerId}/vote`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      });
+
+      if (response.ok) {
+        // 再取得
+        const refreshResponse = await fetch(`/api/questions/${params.id}`);
+        const data = await refreshResponse.json();
+        setQuestion(prev => prev ? { ...prev, votes: data._count?.votes || 0, userVote: data.userVote } : null);
+      }
+    } catch {
+      console.error('投票に失敗しました');
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/questions/${params.id}/save`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setQuestion(prev => prev ? { ...prev, isSaved: data.saved } : null);
+      }
+    } catch {
+      console.error('保存に失敗しました');
+    }
+  };
+
+  const handleSubmitAnswer = async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    if (!answerBody.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/questions/${params.id}/answers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: answerBody.trim() }),
+      });
+
+      if (response.ok) {
+        setAnswerBody('');
+        // 再取得
+        const refreshResponse = await fetch(`/api/questions/${params.id}`);
+        const data = await refreshResponse.json();
+        setAnswers(
+          data.answers?.map((a: {
+            id: string;
+            body: string;
+            author: { id: string; displayName?: string; username: string; avatarUrl?: string };
+            _count?: { votes: number };
+            createdAt: string;
+            isAccepted: boolean;
+          }) => ({
+            id: a.id,
+            body: a.body,
+            author: {
+              id: a.author.id,
+              name: a.author.displayName || a.author.username,
+            },
+            votes: a._count?.votes || 0,
+            createdAt: new Date(a.createdAt).toLocaleDateString('ja-JP'),
+            isAccepted: a.isAccepted,
+          })) || []
+        );
+      }
+    } catch {
+      console.error('回答の投稿に失敗しました');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-[2rem] flex justify-center">
+        <div className="text-[#6B7280] font-mono">読み込み中...</div>
+      </div>
+    );
+  }
+
+  if (error || !question) {
+    return (
+      <div className="p-[2rem]">
+        <div className="bg-[#FEE2E2] text-[#DC2626] px-[1rem] py-[0.75rem] rounded-lg text-[0.875rem] font-mono">
+          {error || '質問が見つかりませんでした'}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-[1rem] lg:p-[2rem] max-w-4xl">
       {/* Mobile Back Button */}
@@ -59,12 +246,24 @@ export default function QuestionDetailPage() {
       <div className="flex gap-[0.75rem] lg:gap-[1rem] mb-[1.5rem] lg:mb-[2rem]">
         {/* Vote */}
         <div className="flex flex-col items-center gap-[0.25rem] lg:gap-[0.5rem]">
-          <button className="text-[#9CA3AF] hover:text-[#2563EB]">
+          <button
+            onClick={() => handleVote(1, 'question')}
+            className={`${question.userVote === 1 ? 'text-[#2563EB]' : 'text-[#9CA3AF]'} hover:text-[#2563EB]`}
+          >
             <ChevronUp className="w-[1.5rem] h-[1.5rem] lg:w-[2rem] lg:h-[2rem]" />
           </button>
           <span className="text-[1.125rem] lg:text-[1.25rem] font-bold text-[#1A1A1A]">{question.votes}</span>
-          <button className="text-[#9CA3AF] hover:text-[#DC2626]">
+          <button
+            onClick={() => handleVote(-1, 'question')}
+            className={`${question.userVote === -1 ? 'text-[#DC2626]' : 'text-[#9CA3AF]'} hover:text-[#DC2626]`}
+          >
             <ChevronDown className="w-[1.5rem] h-[1.5rem] lg:w-[2rem] lg:h-[2rem]" />
+          </button>
+          <button
+            onClick={handleSave}
+            className={`mt-[0.5rem] ${question.isSaved ? 'text-[#2563EB]' : 'text-[#9CA3AF]'} hover:text-[#2563EB]`}
+          >
+            <Bookmark className="w-[1.25rem] h-[1.25rem]" fill={question.isSaved ? '#2563EB' : 'none'} />
           </button>
         </div>
 
@@ -74,7 +273,7 @@ export default function QuestionDetailPage() {
             {question.title}
           </h1>
           <div className="prose font-mono text-[0.75rem] lg:text-[0.875rem] text-[#666666] mb-[0.75rem] lg:mb-[1rem] whitespace-pre-wrap overflow-x-auto">
-            {question.content}
+            {question.body}
           </div>
           <div className="flex flex-wrap gap-[0.375rem] lg:gap-[0.5rem] mb-[0.75rem] lg:mb-[1rem]">
             {question.tags.map((tag) => (
@@ -109,11 +308,17 @@ export default function QuestionDetailPage() {
           <div key={answer.id} className="bg-white rounded-xl p-[1rem] lg:p-[1.5rem] mb-[0.75rem] lg:mb-[1rem] flex gap-[0.75rem] lg:gap-[1rem]">
             {/* Vote */}
             <div className="flex flex-col items-center gap-[0.25rem] lg:gap-[0.5rem]">
-              <button className="text-[#9CA3AF] hover:text-[#2563EB]">
+              <button
+                onClick={() => handleVote(1, 'answer', answer.id)}
+                className={`${answer.userVote === 1 ? 'text-[#2563EB]' : 'text-[#9CA3AF]'} hover:text-[#2563EB]`}
+              >
                 <ChevronUp className="w-[1.25rem] h-[1.25rem] lg:w-[1.5rem] lg:h-[1.5rem]" />
               </button>
               <span className="text-[1rem] lg:text-[1.125rem] font-bold text-[#1A1A1A]">{answer.votes}</span>
-              <button className="text-[#9CA3AF] hover:text-[#DC2626]">
+              <button
+                onClick={() => handleVote(-1, 'answer', answer.id)}
+                className={`${answer.userVote === -1 ? 'text-[#DC2626]' : 'text-[#9CA3AF]'} hover:text-[#DC2626]`}
+              >
                 <ChevronDown className="w-[1.25rem] h-[1.25rem] lg:w-[1.5rem] lg:h-[1.5rem]" />
               </button>
               {answer.isAccepted && (
@@ -131,7 +336,7 @@ export default function QuestionDetailPage() {
                 </span>
               )}
               <div className="prose font-mono text-[0.75rem] lg:text-[0.875rem] text-[#666666] mb-[0.75rem] lg:mb-[1rem] whitespace-pre-wrap overflow-x-auto">
-                {answer.content}
+                {answer.body}
               </div>
               <div className="flex items-center gap-[0.5rem] text-[0.75rem] lg:text-[0.875rem]">
                 <div className="w-[1.25rem] h-[1.25rem] lg:w-[1.5rem] lg:h-[1.5rem] bg-[#059669] rounded-full flex items-center justify-center">
@@ -150,13 +355,33 @@ export default function QuestionDetailPage() {
       {/* Answer Form */}
       <div className="mt-[1.5rem] lg:mt-[2rem] border-t border-[#E5E7EB] pt-[1rem] lg:pt-[1.5rem]">
         <h3 className="text-[1rem] lg:text-[1.125rem] font-semibold font-mono text-[#1A1A1A] mb-[0.75rem] lg:mb-[1rem]">回答を投稿</h3>
-        <textarea
-          placeholder="回答を入力してください..."
-          className="w-full h-[6rem] lg:h-[8rem] px-[0.75rem] lg:px-[1rem] py-[0.5rem] lg:py-[0.75rem] rounded-lg border border-[#E5E7EB] text-[0.75rem] lg:text-[0.875rem] font-mono outline-none focus:border-[#2563EB] transition-colors resize-none mb-[0.75rem] lg:mb-[1rem]"
-        />
-        <button className="w-full lg:w-auto px-[1rem] lg:px-[1.5rem] py-[0.625rem] lg:py-[0.75rem] bg-[#2563EB] text-white rounded-lg text-[0.75rem] lg:text-[0.875rem] font-mono font-semibold hover:bg-[#1D4ED8] transition-colors">
-          回答を投稿
-        </button>
+        {user ? (
+          <>
+            <textarea
+              value={answerBody}
+              onChange={(e) => setAnswerBody(e.target.value)}
+              placeholder="回答を入力してください..."
+              className="w-full h-[6rem] lg:h-[8rem] px-[0.75rem] lg:px-[1rem] py-[0.5rem] lg:py-[0.75rem] rounded-lg border border-[#E5E7EB] text-[0.75rem] lg:text-[0.875rem] font-mono outline-none focus:border-[#2563EB] transition-colors resize-none mb-[0.75rem] lg:mb-[1rem]"
+            />
+            <button
+              onClick={handleSubmitAnswer}
+              disabled={isSubmitting || !answerBody.trim()}
+              className="w-full lg:w-auto px-[1rem] lg:px-[1.5rem] py-[0.625rem] lg:py-[0.75rem] bg-[#2563EB] text-white rounded-lg text-[0.75rem] lg:text-[0.875rem] font-mono font-semibold hover:bg-[#1D4ED8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? '投稿中...' : '回答を投稿'}
+            </button>
+          </>
+        ) : (
+          <div className="bg-[#F3F4F6] rounded-lg p-[1rem] text-center">
+            <p className="text-[0.875rem] text-[#6B7280] font-mono mb-[0.75rem]">回答するにはログインが必要です</p>
+            <Link
+              href="/login"
+              className="inline-block px-[1.5rem] py-[0.75rem] bg-[#2563EB] text-white rounded-lg text-[0.875rem] font-mono font-semibold hover:bg-[#1D4ED8] transition-colors"
+            >
+              ログインする
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

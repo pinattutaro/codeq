@@ -1,12 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { X, Lightbulb, Code, MessageSquare, FileText } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const suggestedTags = [
   { name: 'JavaScript', color: 'bg-[#2563EB]/20 text-[#2563EB]' },
   { name: 'React', color: 'bg-[#F59E0B]/20 text-[#F59E0B]' },
   { name: 'TypeScript', color: 'bg-[#DC2626]/20 text-[#DC2626]' },
+  { name: 'Python', color: 'bg-[#059669]/20 text-[#059669]' },
+  { name: 'Node.js', color: 'bg-[#8B5CF6]/20 text-[#8B5CF6]' },
 ];
 
 const tips = [
@@ -16,10 +20,16 @@ const tips = [
 ];
 
 export default function PostQuestionPage() {
+  const router = useRouter();
+  const { user, loading } = useAuth();
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const addTag = (tagName: string) => {
-    if (!tags.includes(tagName)) {
+    if (!tags.includes(tagName) && tags.length < 5) {
       setTags([...tags, tagName]);
     }
   };
@@ -27,6 +37,73 @@ export default function PostQuestionPage() {
   const removeTag = (tagName: string) => {
     setTags(tags.filter((t) => t !== tagName));
   };
+
+  const handleSubmit = async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    if (!title.trim() || !body.trim()) {
+      setError('タイトルと本文は必須です');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/questions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: title.trim(),
+          body: body.trim(),
+          tags,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '投稿に失敗しました');
+      }
+
+      const data = await response.json();
+      router.push(`/question/${data.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '投稿に失敗しました');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCancel = () => {
+    router.back();
+  };
+
+  // ログインチェック
+  if (!loading && !user) {
+    return (
+      <div className="p-[1rem] lg:p-[2rem] max-w-4xl">
+        <div className="bg-white rounded-xl p-[2rem] text-center">
+          <h2 className="text-[1.25rem] font-bold font-display text-[#1A1A1A] mb-[1rem]">
+            ログインが必要です
+          </h2>
+          <p className="text-[0.875rem] text-[#6B7280] font-mono mb-[1.5rem]">
+            質問を投稿するにはログインしてください
+          </p>
+          <button
+            onClick={() => router.push('/login')}
+            className="px-[1.5rem] py-[0.75rem] bg-[#2563EB] text-white rounded-lg text-[0.875rem] font-mono font-semibold hover:bg-[#1D4ED8] transition-colors"
+          >
+            ログインする
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-[1rem] lg:p-[2rem] max-w-4xl">
@@ -38,6 +115,13 @@ export default function PostQuestionPage() {
         </p>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-[#FEE2E2] text-[#DC2626] px-[1rem] py-[0.75rem] rounded-lg mb-[1rem] text-[0.875rem] font-mono">
+          {error}
+        </div>
+      )}
+
       {/* Form */}
       <div className="bg-white rounded-xl p-[1rem] lg:p-[1.5rem] mb-[1rem] lg:mb-[1.5rem]">
         {/* Title */}
@@ -47,6 +131,8 @@ export default function PostQuestionPage() {
           </label>
           <input
             type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
             placeholder="質問のタイトルを入力"
             className="w-full h-[2.5rem] lg:h-[3rem] px-[0.75rem] lg:px-[1rem] rounded-lg border border-[#E5E7EB] text-[0.75rem] lg:text-[0.875rem] font-mono outline-none focus:border-[#2563EB] transition-colors"
           />
@@ -58,6 +144,8 @@ export default function PostQuestionPage() {
             本文
           </label>
           <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
             placeholder="質問の詳細を入力してください..."
             className="w-full h-[8rem] lg:h-[12rem] px-[0.75rem] lg:px-[1rem] py-[0.5rem] lg:py-[0.75rem] rounded-lg border border-[#E5E7EB] text-[0.75rem] lg:text-[0.875rem] font-mono outline-none focus:border-[#2563EB] transition-colors resize-none"
           />
@@ -66,7 +154,7 @@ export default function PostQuestionPage() {
         {/* Tags */}
         <div className="mb-[1rem] lg:mb-[1.5rem]">
           <label className="block text-[0.75rem] lg:text-[0.875rem] font-semibold text-[#1A1A1A] font-mono mb-[0.375rem] lg:mb-[0.5rem]">
-            タグ
+            タグ（最大5つ）
           </label>
           <div className="flex flex-wrap gap-[0.5rem] mb-[0.5rem] lg:mb-[0.75rem]">
             {tags.map((tag) => {
@@ -101,11 +189,18 @@ export default function PostQuestionPage() {
 
         {/* Submit */}
         <div className="flex flex-col-reverse lg:flex-row justify-end gap-[0.5rem] lg:gap-[0.75rem]">
-          <button className="px-[1rem] lg:px-[1.5rem] py-[0.625rem] lg:py-[0.75rem] text-[0.75rem] lg:text-[0.875rem] font-mono text-[#6B7280] hover:text-[#1A1A1A] transition-colors border border-[#E5E7EB] rounded-lg lg:border-0">
+          <button
+            onClick={handleCancel}
+            className="px-[1rem] lg:px-[1.5rem] py-[0.625rem] lg:py-[0.75rem] text-[0.75rem] lg:text-[0.875rem] font-mono text-[#6B7280] hover:text-[#1A1A1A] transition-colors border border-[#E5E7EB] rounded-lg lg:border-0"
+          >
             キャンセル
           </button>
-          <button className="px-[1rem] lg:px-[1.5rem] py-[0.625rem] lg:py-[0.75rem] bg-[#2563EB] text-white rounded-lg text-[0.75rem] lg:text-[0.875rem] font-mono font-semibold hover:bg-[#1D4ED8] transition-colors">
-            投稿する
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-[1rem] lg:px-[1.5rem] py-[0.625rem] lg:py-[0.75rem] bg-[#2563EB] text-white rounded-lg text-[0.75rem] lg:text-[0.875rem] font-mono font-semibold hover:bg-[#1D4ED8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? '投稿中...' : '投稿する'}
           </button>
         </div>
       </div>
