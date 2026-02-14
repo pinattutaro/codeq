@@ -92,13 +92,16 @@ export default function MyPage() {
   };
 
   const handleStartEdit = () => {
-    if (profile) {
-      setEditDisplayName(profile.displayName);
-      setEditBio(profile.bio);
-      setEditAvatarUrl(profile.avatarUrl || '');
-      setEditError('');
-      setIsEditing(true);
+    console.log('Edit button clicked, profile:', profile);
+    if (!profile) {
+      console.error('Profile is null, cannot edit');
+      return;
     }
+    setEditDisplayName(profile.displayName || '');
+    setEditBio(profile.bio || '');
+    setEditAvatarUrl(profile.avatarUrl || '');
+    setEditError('');
+    setIsEditing(true);
   };
 
   const handleCancelEdit = () => {
