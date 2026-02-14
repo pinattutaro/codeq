@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  --background: #F7F7F7;
+  --foreground: #1A1A1A;
+  --primary: #2563EB;
+  --primary-light: rgba(37, 99, 235, 0.125);
+  --secondary: #9CA3AF;
+  --sidebar-bg: #1A1A1A;
+  --card-bg: #FFFFFF;
+  --border: #E5E7EB;
+  --text-muted: #6B7280;
+  --text-secondary: #666666;
+  --success: #059669;
+  --warning: #F59E0B;
+  --error: #DC2626;
+  --purple: #8B5CF6;
+  --cyan: #06B6D4;
+  --pink: #EC4899;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-secondary: var(--secondary);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-card-bg: var(--card-bg);
+  --color-border: var(--border);
+  --color-text-muted: var(--text-muted);
+  --color-text-secondary: var(--text-secondary);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-space-mono), "Space Mono", monospace;
+}
+
+.font-display {
+  font-family: var(--font-playfair), "Playfair Display", serif;
+}
+
+.font-mono {
+  font-family: var(--font-space-mono), "Space Mono", monospace;
+}

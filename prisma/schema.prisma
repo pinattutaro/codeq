@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  displayName   String?
+  avatarUrl     String?
+  bio           String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Supabase Auth連携
+  supabaseId    String?   @unique
+
+  // Relations
+  questions     Question[]
+  answers       Answer[]
+  votes         Vote[]
+  savedQuestions SavedQuestion[]
+  comments      Comment[]
+
+  @@map("users")
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  title       String
+  body        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  viewCount   Int      @default(0)
+  
+  // Relations
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  tags        QuestionTag[]
+  answers     Answer[]
+  votes       Vote[]
+  savedBy     SavedQuestion[]
+  comments    Comment[]
+
+  @@map("questions")
+}
+
+model Answer {
+  id          String   @id @default(cuid())
+  body        String
+  isAccepted  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  questionId  String
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  votes       Vote[]
+  comments    Comment[]
+
+  @@map("answers")
+}
+
+model Tag {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  color       String   @default("#6B7280")
+  createdAt   DateTime @default(now())
+
+  // Relations
+  questions   QuestionTag[]
+
+  @@map("tags")
+}
+
+model QuestionTag {
+  questionId  String
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  tagId       String
+  tag         Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, tagId])
+  @@map("question_tags")
+}
+
+model Vote {
+  id          String   @id @default(cuid())
+  value       Int      // 1 = upvote, -1 = downvote
+  createdAt   DateTime @default(now())
+
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  questionId  String?
+  question    Question? @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  answerId    String?
+  answer      Answer?  @relation(fields: [answerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@unique([userId, answerId])
+  @@map("votes")
+}
+
+model SavedQuestion {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  questionId  String
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@map("saved_questions")
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  body        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  questionId  String?
+  question    Question? @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  answerId    String?
+  answer      Answer?  @relation(fields: [answerId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
