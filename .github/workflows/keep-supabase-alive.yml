@@ -32,6 +32,29 @@ jobs:
             exit 1
           fi
 
+      - name: Ping Supabase and Log
+        run: |
+          echo "Pinging Supabase and logging..."
+          
+          # ping_logsテーブルにレコードを挿入
+          response=$(curl -s -w "\n%{http_code}" \
+            -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/ping_logs" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d '{"source": "github-actions"}')
+          
+          http_code=$(echo "$response" | tail -n1)
+          echo "Response status: $http_code"
+          
+          if [ "$http_code" -eq 201 ]; then
+            echo "✅ Ping logged successfully!"
+          else
+            echo "⚠️ Unexpected response: $http_code"
+            exit 1
+          fi
+
       - name: Ping Production App (Optional)
         run: |
           # デプロイ済みのアプリにもpingを送信（Vercelのアプリがある場合）
