@@ -1,0 +1,44 @@
+# Supabaseの無料プランは7日間アクセスがないと停止モードになるため、
+# 定期的にpingを送ってアクティブな状態を維持する
+
+name: Keep Supabase Alive
+
+on:
+  schedule:
+    # 毎日午前9時（UTC）に実行 = 日本時間18時
+    - cron: '0 9 * * *'
+  workflow_dispatch: # 手動実行も可能
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          echo "Pinging Supabase to keep it alive..."
+          
+          # Supabase REST APIにリクエストを送信
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+          
+          echo "Response status: $response"
+          
+          if [ "$response" -ge 200 ] && [ "$response" -lt 300 ]; then
+            echo "✅ Supabase is alive!"
+          else
+            echo "⚠️ Unexpected response: $response"
+            exit 1
+          fi
+
+      - name: Ping Production App (Optional)
+        run: |
+          # デプロイ済みのアプリにもpingを送信（Vercelのアプリがある場合）
+          if [ -n "${{ secrets.PRODUCTION_URL }}" ]; then
+            echo "Pinging production app..."
+            curl -s -o /dev/null -w "Production app status: %{http_code}\n" \
+              "${{ secrets.PRODUCTION_URL }}"
+          else
+            echo "PRODUCTION_URL not set, skipping..."
+          fi
