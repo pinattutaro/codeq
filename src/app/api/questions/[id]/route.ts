@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // 質問詳細取得
@@ -9,6 +10,18 @@ export async function GET(
   const { id } = await params
 
   try {
+    // 現在のユーザーを取得（任意）
+    const supabase = await createClient()
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+    
+    let currentUserId: string | null = null
+    if (supabaseUser) {
+      const dbUser = await prisma.user.findUnique({
+        where: { supabaseId: supabaseUser.id },
+      })
+      currentUserId = dbUser?.id || null
+    }
+
     // 閲覧数を増加
     const question = await prisma.question.update({
       where: { id },
@@ -90,16 +103,59 @@ export async function GET(
       _sum: { value: true },
     })
 
-    // 各回答の投票スコアを計算
+    // 現在のユーザーの質問への投票状態
+    let questionUserVote: number | null = null
+    if (currentUserId) {
+      const userVote = await prisma.vote.findUnique({
+        where: {
+          userId_questionId: {
+            userId: currentUserId,
+            questionId: id,
+          },
+        },
+      })
+      questionUserVote = userVote?.value || null
+    }
+
+    // 保存状態を確認
+    let isSaved = false
+    if (currentUserId) {
+      const saved = await prisma.savedQuestion.findUnique({
+        where: {
+          userId_questionId: {
+            userId: currentUserId,
+            questionId: id,
+          },
+        },
+      })
+      isSaved = !!saved
+    }
+
+    // 各回答の投票スコアとユーザー投票状態を計算
     const answersWithScore = await Promise.all(
-      question.answers.map(async (answer) => {
+      question.answers.map(async (answer: { id: string; body: string; authorId: string; questionId: string; isAccepted: boolean; createdAt: Date; updatedAt: Date; author: { id: string; name: string | null; displayName: string | null; avatarUrl: string | null }; _count: { votes: number } }) => {
         const answerVoteResult = await prisma.vote.aggregate({
           where: { answerId: answer.id },
           _sum: { value: true },
         })
+        
+        let answerUserVote: number | null = null
+        if (currentUserId) {
+          const userVote = await prisma.vote.findUnique({
+            where: {
+              userId_answerId: {
+                userId: currentUserId,
+                answerId: answer.id,
+              },
+            },
+          })
+          answerUserVote = userVote?.value || null
+        }
+        
         return {
           ...answer,
           voteScore: answerVoteResult._sum.value || 0,
+          userVote: answerUserVote,
         }
       })
     )
@@ -108,6 +164,8 @@ export async function GET(
       question: {
         ...question,
         voteScore: voteResult._sum.value || 0,
+        userVote: questionUserVote,
+        isSaved,
         answers: answersWithScore,
       },
     })

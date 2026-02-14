@@ -145,8 +145,53 @@ export default function QuestionDetailPage() {
       if (response.ok) {
         // 再取得
         const refreshResponse = await fetch(`/api/questions/${params.id}`);
-        const data = await refreshResponse.json();
-        setQuestion(prev => prev ? { ...prev, votes: data._count?.votes || 0, userVote: data.userVote } : null);
+        const result = await refreshResponse.json();
+        const data = result.question;
+        
+        if (data) {
+          setQuestion({
+            id: data.id,
+            title: data.title,
+            body: data.body,
+            tags: (data.tags || []).map((t: { tag: { name: string } }) => ({
+              name: t.tag.name,
+              color: tagColors[t.tag.name] || 'bg-[#6B7280]/20 text-[#6B7280]',
+            })),
+            author: {
+              id: data.author.id,
+              name: data.author.displayName || data.author.name,
+              avatarUrl: data.author.avatarUrl,
+            },
+            votes: data.voteScore || 0,
+            createdAt: new Date(data.createdAt).toLocaleDateString('ja-JP'),
+            userVote: data.userVote,
+            isSaved: data.isSaved,
+          });
+          
+          setAnswers(
+            (data.answers || []).map((a: {
+              id: string;
+              body: string;
+              author: { id: string; displayName?: string; name: string; avatarUrl?: string };
+              voteScore?: number;
+              createdAt: string;
+              isAccepted: boolean;
+              userVote?: number;
+            }) => ({
+              id: a.id,
+              body: a.body,
+              author: {
+                id: a.author.id,
+                name: a.author.displayName || a.author.name,
+                avatarUrl: a.author.avatarUrl,
+              },
+              votes: a.voteScore || 0,
+              createdAt: new Date(a.createdAt).toLocaleDateString('ja-JP'),
+              isAccepted: a.isAccepted,
+              userVote: a.userVote,
+            }))
+          );
+        }
       }
     } catch {
       console.error('投票に失敗しました');
@@ -259,7 +304,7 @@ export default function QuestionDetailPage() {
           >
             <ChevronUp className="w-[1.5rem] h-[1.5rem] lg:w-[2rem] lg:h-[2rem]" />
           </button>
-          <span className="text-[1.125rem] lg:text-[1.25rem] font-bold text-[#1A1A1A]">{question.votes}</span>
+          <span className={`text-[1.125rem] lg:text-[1.25rem] font-bold ${question.userVote === 1 ? 'text-[#2563EB]' : question.userVote === -1 ? 'text-[#DC2626]' : 'text-[#1A1A1A]'}`}>{question.votes}</span>
           <button
             onClick={() => handleVote(-1, 'question')}
             className={`${question.userVote === -1 ? 'text-[#DC2626]' : 'text-[#9CA3AF]'} hover:text-[#DC2626]`}
@@ -321,7 +366,7 @@ export default function QuestionDetailPage() {
               >
                 <ChevronUp className="w-[1.25rem] h-[1.25rem] lg:w-[1.5rem] lg:h-[1.5rem]" />
               </button>
-              <span className="text-[1rem] lg:text-[1.125rem] font-bold text-[#1A1A1A]">{answer.votes}</span>
+              <span className={`text-[1rem] lg:text-[1.125rem] font-bold ${answer.userVote === 1 ? 'text-[#2563EB]' : answer.userVote === -1 ? 'text-[#DC2626]' : 'text-[#1A1A1A]'}`}>{answer.votes}</span>
               <button
                 onClick={() => handleVote(-1, 'answer', answer.id)}
                 className={`${answer.userVote === -1 ? 'text-[#DC2626]' : 'text-[#9CA3AF]'} hover:text-[#DC2626]`}
