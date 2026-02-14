@@ -128,13 +128,14 @@ export async function POST(request: NextRequest) {
 
     if (!dbUser) {
       // ユーザーが存在しない場合は作成
+      const meta = supabaseUser.user_metadata || {}
       dbUser = await prisma.user.create({
         data: {
           email: supabaseUser.email!,
-          name: supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0] || 'User',
-          displayName: supabaseUser.user_metadata?.display_name || supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0],
+          name: meta.user_name || meta.preferred_username || supabaseUser.email?.split('@')[0] || 'User',
+          displayName: meta.full_name || meta.name || meta.user_name || supabaseUser.email?.split('@')[0],
+          avatarUrl: meta.avatar_url,
           supabaseId: supabaseUser.id,
-          avatarUrl: supabaseUser.user_metadata?.avatar_url,
         },
       })
     }

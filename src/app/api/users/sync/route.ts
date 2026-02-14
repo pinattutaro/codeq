@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 // Supabase IDからユーザーを取得・作成
 export async function POST(request: NextRequest) {
   try {
-    const { supabaseId, email, name } = await request.json()
+    const { supabaseId, email, name, displayName, avatarUrl } = await request.json()
 
     // 既存ユーザーを検索
     let user = await prisma.user.findUnique({
@@ -18,10 +18,14 @@ export async function POST(request: NextRequest) {
       })
 
       if (user) {
-        // supabaseIdを更新
+        // supabaseIdを更新し、GitHubの情報も反映
         user = await prisma.user.update({
           where: { id: user.id },
-          data: { supabaseId },
+          data: {
+            supabaseId,
+            displayName: displayName || user.displayName,
+            avatarUrl: avatarUrl || user.avatarUrl,
+          },
         })
       } else {
         // 新規作成
@@ -29,8 +33,20 @@ export async function POST(request: NextRequest) {
           data: {
             email,
             name,
-            displayName: name,
+            displayName: displayName || name,
+            avatarUrl,
             supabaseId,
+          },
+        })
+      }
+    } else {
+      // 既存ユーザーでもGitHubの情報を更新（初回設定のみ）
+      if (!user.avatarUrl && avatarUrl) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            avatarUrl,
+            displayName: user.displayName || displayName,
           },
         })
       }
