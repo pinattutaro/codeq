@@ -139,14 +139,14 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const { title, body, tags } = await request.json()
+    const { title, body, tags = [] } = await request.json()
 
     const question = await prisma.question.create({
       data: {
         title,
         body,
         authorId: dbUser.id,
-        tags: {
+        tags: tags.length > 0 ? {
           create: tags.map((tagName: string) => ({
             tag: {
               connectOrCreate: {
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
               },
             },
           })),
-        },
+        } : undefined,
       },
       include: {
         author: {
