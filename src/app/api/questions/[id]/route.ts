@@ -160,13 +160,22 @@ export async function GET(
       })
     )
 
+    // 投票スコア順に並べ替え（高い順）
+    const sortedAnswers = answersWithScore.sort((a, b) => b.voteScore - a.voteScore)
+    
+    // 最も投票が多い回答をベストアンサーとしてマーク（回答が1つ以上あり、最高スコアが0より大きい場合）
+    const answersWithBestAnswer = sortedAnswers.map((answer, index) => ({
+      ...answer,
+      isAccepted: sortedAnswers.length > 0 && sortedAnswers[0].voteScore > 0 && index === 0,
+    }))
+
     return NextResponse.json({
       question: {
         ...question,
         voteScore: voteResult._sum.value || 0,
         userVote: questionUserVote,
         isSaved,
-        answers: answersWithScore,
+        answers: answersWithBestAnswer,
       },
     })
   } catch (error) {
